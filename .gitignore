@@ -1,0 +1,8 @@
+bin/
+obj/
+Shared/Assertions.inl
+Shared/NameCollisions.inl
+Shared/PropertyFixup.hpp
+Shared/SDK
+Shared/SDK.hpp
+Shared/UtfN.hpp
