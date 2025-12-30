@@ -25,4 +25,9 @@ namespace Utils
     {
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), Cmd, nullptr);
     }
+
+    AFortGameModeBR* GetGameMode()
+    {
+        return (AFortGameModeBR*)UWorld::GetWorld()->AuthorityGameMode;
+    }
 }

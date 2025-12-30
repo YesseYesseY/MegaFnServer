@@ -41,6 +41,8 @@ DWORD MainThread(HMODULE Module)
     Utils::ExecuteConsoleCommand(L"net.AllowEncryption 0");
     *(bool*)(InSDKUtils::GetImageBase() + 0x101FEA60) = true; // net.Iris.UseIrisReplication
 
+    Utils::ExecuteConsoleCommand(L"log LogFortLoadingScreen VeryVerbose");
+
     Utils::ExecuteConsoleCommand(L"open 127.0.0.1");
     return 0;
 }

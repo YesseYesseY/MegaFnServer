@@ -5,6 +5,8 @@
 #include <Utils.hpp>
 #include <Hook.hpp>
 
+// #define SkipAircraft
+
 void RequestExitHook()
 {
     return;
@@ -70,6 +72,9 @@ void TickFlushHook(UNetDriver* NetDriver, float DeltaSeconds)
 bool (*ReadyToStartMatchOriginal)(AFortGameModeBR* GameMode);
 bool ReadyToStartMatchHook(AFortGameModeBR* GameMode)
 {
+    if (UFortKismetLibrary::GetNumActorsOfClass(UWorld::GetWorld(), AFortPlayerStartWarmup::StaticClass()) <= 0)
+        return false;
+        
     static bool Started = false;
     if (!Started)
     {
@@ -80,7 +85,11 @@ bool ReadyToStartMatchHook(AFortGameModeBR* GameMode)
         GameState->CurrentPlaylistInfo.BasePlaylist = Playlist;
         GameState->OnRep_CurrentPlaylistInfo();
         
+#ifdef SkipAircraft
         GameState->GamePhase = EAthenaGamePhase::None;
+#else
+        GameState->GamePhase = EAthenaGamePhase::Warmup;
+#endif
         GameState->OnRep_GamePhase(EAthenaGamePhase::Setup);
 
         bool (*InitHost)(AOnlineBeaconHost*) = decltype(InitHost)(InSDKUtils::GetImageBase() + 0x7F160B0);
@@ -111,6 +120,8 @@ bool ReadyToStartMatchHook(AFortGameModeBR* GameMode)
         World->LevelCollections[1].NetDriver = NetDriver;
 
         GameMode->bWorldIsReady = true;
+
+        World->ServerStreamingLevelsVisibility = Utils::SpawnActor<AServerStreamingLevelsVisibility>();
     }
 
     return ReadyToStartMatchOriginal(GameMode);
@@ -119,13 +130,24 @@ bool ReadyToStartMatchHook(AFortGameModeBR* GameMode)
 APawn* SpawnDefaultPawnForHook(AFortGameModeBR* GameMode, AController* NewPlayer, AActor* StartSpot)
 {
     auto translivesmatter = StartSpot->GetTransform();
+#ifdef SkipAircraft
     translivesmatter.Translation = {0, 0, 10000};
+#endif
     return GameMode->SpawnDefaultPawnAtTransform(NewPlayer, translivesmatter);
 }
 
 void ServerAcknowledgePossessionHook(AFortPlayerControllerAthena* PlayerController, APawn* P)
 {
     PlayerController->AcknowledgedPawn = P;
+}
+
+void ServerAttemptAircraftJumpHook(UFortControllerComponent_Aircraft* Component, FRotator& ClientRotation)
+{
+    auto PlayerController = (AFortPlayerControllerAthena*)Component->GetOwner();
+    auto Pawn = (AFortPlayerPawnAthena*)Utils::GetGameMode()->SpawnDefaultPawnAtTransform(PlayerController, Component->CurrentAircraft->GetTransform());
+    Pawn->bCanBeDamaged = false;
+    PlayerController->Possess(Pawn);
+    PlayerController->ClientSetRotation(ClientRotation, false);
 }
 
 DWORD MainThread(HMODULE Module)
@@ -153,6 +175,7 @@ DWORD MainThread(HMODULE Module)
     Hook::VTable<AFortGameModeBR>(1824 / 8, SpawnDefaultPawnForHook);
     Hook::VTable<AFortGameModeBR>(2320 / 8, ReadyToStartMatchHook, &ReadyToStartMatchOriginal);
     Hook::VTable<AFortPlayerControllerAthena>(2448 / 8, ServerAcknowledgePossessionHook);
+    Hook::VTable<UFortControllerComponent_Aircraft>(1320 / 8, ServerAttemptAircraftJumpHook);
 
     Utils::ExecuteConsoleCommand(L"log LogFortUIDirector None");
 
