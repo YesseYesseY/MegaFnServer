@@ -36,4 +36,30 @@ namespace Utils
         static void (*uwu)(void*) = decltype(uwu)(InSDKUtils::GetImageBase() + 0x1CD6FD8);
         uwu(Arr);
     }
+
+    template <typename T>
+    T* GetSoftPtr(TSoftObjectPtr<T> SoftPtr)
+    {
+        auto ret = SoftPtr.Get();
+
+        if (!ret)
+            ret = (T*)UKismetSystemLibrary::LoadAsset_Blocking((TSoftObjectPtr<UObject>)SoftPtr);
+
+        return (T*)ret;
+    }
+
+    UClass* GetSoftPtr(TSoftClassPtr<UClass>& SoftPtr)
+    {
+        auto ret = SoftPtr.Get();
+
+        if (!ret)
+            ret = UKismetSystemLibrary::LoadClassAsset_Blocking(SoftPtr);
+
+        return ret;
+    }
+
+    UFortAssetManager* GetAssetManager()
+    {
+        return (UFortAssetManager*)UEngine::GetEngine()->AssetManager;
+    }
 }

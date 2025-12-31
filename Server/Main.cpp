@@ -7,6 +7,8 @@
 
 #define SkipAircraft
 
+#include "Inventory.hpp"
+
 void RequestExitHook()
 {
     return;
@@ -147,6 +149,14 @@ APawn* SpawnDefaultPawnForHook(AFortGameModeBR* GameMode, AFortPlayerControllerA
     PlayerState->AbilitySystemComponent->K2_GiveAbility(TacSprint, 1, 1);
     PlayerState->AbilitySystemComponent->K2_GiveAbility(DoorBash, 1, 1); // TODO Doesn't work correctly :(
 
+    auto AssetManager = Utils::GetAssetManager();
+    Inventory::GiveItem(PlayerController, Utils::GetSoftPtr(AssetManager->GameDataCosmetics->FallbackPickaxe)->WeaponDefinition);
+    Inventory::GiveItem(PlayerController, Utils::GetSoftPtr(AssetManager->GameDataCommon->WoodItemDefinition));
+    Inventory::GiveItem(PlayerController, Utils::GetSoftPtr(AssetManager->GameDataCommon->StoneItemDefinition));
+    Inventory::GiveItem(PlayerController, Utils::GetSoftPtr(AssetManager->GameDataCommon->MetalItemDefinition));
+    Inventory::GiveItem(PlayerController, Utils::GetSoftPtr(AssetManager->GameDataBR->DefaultGlobalCurrencyItemDefinition));
+    Inventory::Update(PlayerController);
+
     auto Pawn = GameMode->SpawnDefaultPawnAtTransform(PlayerController, translivesmatter);
     Pawn->bCanBeDamaged = false;
     return Pawn;
@@ -235,6 +245,7 @@ DWORD MainThread(HMODULE Module)
     Hook::VTable<AFortGameModeBR>(1824 / 8, SpawnDefaultPawnForHook);
     Hook::VTable<AFortGameModeBR>(2320 / 8, ReadyToStartMatchHook, &ReadyToStartMatchOriginal);
     Hook::VTable<AFortPlayerControllerAthena>(2448 / 8, ServerAcknowledgePossessionHook);
+    Hook::VTable<AFortPlayerControllerAthena>(4464 / 8, Inventory::ServerExecuteInventoryItem);
     Hook::VTable<UFortControllerComponent_Aircraft>(1320 / 8, ServerAttemptAircraftJumpHook);
     Hook::VTable<UFortAbilitySystemComponentAthena>(2216 / 8, InternalServerTryActivateAbility);
 

@@ -300,16 +300,22 @@ namespace UC
 		inline const ArrayElementType& GetUnsafe(int32 Index) const { return Data[Index]; }
 
 	public:
-		/* Adds to the array if there is still space for one more element */
-		inline bool Add(const ArrayElementType& Element)
+
+		inline void Reserve(int32 Count)
+		{
+			if (GetSlack() < Count)
+				MaxElements += Count; 
+			
+			Data = static_cast<ArrayElementType*>(FMemory::Realloc(Data, MaxElements * ElementSize, ElementAlign));
+		}
+
+		inline void Add(const ArrayElementType& Element)
 		{
 			if (GetSlack() <= 0)
-				return false;
+				Reserve(3);
 
 			Data[NumElements] = Element;
 			NumElements++;
-
-			return true;
 		}
 
 		inline bool Remove(int32 Index)
