@@ -30,4 +30,10 @@ namespace Utils
     {
         return (AFortGameModeBR*)UWorld::GetWorld()->AuthorityGameMode;
     }
+
+    void MarkArrayDirty(void* Arr)
+    {
+        static void (*uwu)(void*) = decltype(uwu)(InSDKUtils::GetImageBase() + 0x1CD6FD8);
+        uwu(Arr);
+    }
 }

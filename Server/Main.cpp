@@ -5,7 +5,7 @@
 #include <Utils.hpp>
 #include <Hook.hpp>
 
-// #define SkipAircraft
+#define SkipAircraft
 
 void RequestExitHook()
 {
@@ -127,13 +127,29 @@ bool ReadyToStartMatchHook(AFortGameModeBR* GameMode)
     return ReadyToStartMatchOriginal(GameMode);
 }
 
-APawn* SpawnDefaultPawnForHook(AFortGameModeBR* GameMode, AController* NewPlayer, AActor* StartSpot)
+APawn* SpawnDefaultPawnForHook(AFortGameModeBR* GameMode, AFortPlayerControllerAthena* PlayerController, AActor* StartSpot)
 {
     auto translivesmatter = StartSpot->GetTransform();
+
 #ifdef SkipAircraft
-    translivesmatter.Translation = {0, 0, 10000};
+    translivesmatter.Translation = {-40850, 20660, 10000};
 #endif
-    return GameMode->SpawnDefaultPawnAtTransform(NewPlayer, translivesmatter);
+
+    auto PlayerState = (AFortPlayerStateAthena*)PlayerController->PlayerState;
+
+    static auto AbilitySet = UObject::FindObject<UFortAbilitySet>("FortAbilitySet GAS_AthenaPlayer.GAS_AthenaPlayer");
+    for (auto Ability : AbilitySet->GameplayAbilities)
+    {
+        PlayerState->AbilitySystemComponent->K2_GiveAbility(Ability, 1, 1);
+    }
+    static auto TacSprint = UObject::FindClassFast("GA_Athena_TacticalSprint_C");
+    static auto DoorBash = UObject::FindClassFast("GA_Athena_Player_DoorBash_C");
+    PlayerState->AbilitySystemComponent->K2_GiveAbility(TacSprint, 1, 1);
+    PlayerState->AbilitySystemComponent->K2_GiveAbility(DoorBash, 1, 1); // TODO Doesn't work correctly :(
+
+    auto Pawn = GameMode->SpawnDefaultPawnAtTransform(PlayerController, translivesmatter);
+    Pawn->bCanBeDamaged = false;
+    return Pawn;
 }
 
 void ServerAcknowledgePossessionHook(AFortPlayerControllerAthena* PlayerController, APawn* P)
@@ -148,6 +164,50 @@ void ServerAttemptAircraftJumpHook(UFortControllerComponent_Aircraft* Component,
     Pawn->bCanBeDamaged = false;
     PlayerController->Possess(Pawn);
     PlayerController->ClientSetRotation(ClientRotation, false);
+}
+
+void InternalServerTryActivateAbility(UAbilitySystemComponent* Component, FGameplayAbilitySpecHandle Handle, bool InputPressed, const FPredictionKey& PredictionKey, const FGameplayEventData* TriggerEventData)
+{
+    static FGameplayAbilitySpec* (*FindAbilitySpecFromHandle)(UAbilitySystemComponent* Component, FGameplayAbilitySpecHandle Handle)
+        = decltype(FindAbilitySpecFromHandle)(InSDKUtils::GetImageBase() + 0x11AA2C8);
+
+    FGameplayAbilitySpec* Spec = FindAbilitySpecFromHandle(Component, Handle);
+    if (!Spec)
+    {
+        Component->ClientActivateAbilityFailed(Handle, PredictionKey.Current);
+        return;
+    }
+
+    const UGameplayAbility* AbilityToActivate = Spec->Ability;
+
+    if (!AbilityToActivate)
+    {
+        Component->ClientActivateAbilityFailed(Handle, PredictionKey.Current);
+        return;
+    }
+
+    if (AbilityToActivate->NetSecurityPolicy == EGameplayAbilityNetSecurityPolicy::ServerOnlyExecution ||
+        AbilityToActivate->NetSecurityPolicy == EGameplayAbilityNetSecurityPolicy::ServerOnly)
+    {
+        Component->ClientActivateAbilityFailed(Handle, PredictionKey.Current);
+        return;
+    }
+
+    UGameplayAbility* InstancedAbility = nullptr;
+    Spec->InputPressed = true;
+
+    static bool (*InternalTryActivateAbility)(UAbilitySystemComponent*, FGameplayAbilitySpecHandle, FPredictionKey, UGameplayAbility**, void*, const FGameplayEventData*)
+        = decltype(InternalTryActivateAbility)(InSDKUtils::GetImageBase() + 0x8715398);
+
+    if (InternalTryActivateAbility(Component, Handle, PredictionKey, &InstancedAbility, nullptr, TriggerEventData))
+    {
+    }
+    else
+    {
+        Component->ClientActivateAbilityFailed(Handle, PredictionKey.Current);
+        Spec->InputPressed = false;
+        Utils::MarkArrayDirty(&Component->ActivatableAbilities);
+    }
 }
 
 DWORD MainThread(HMODULE Module)
@@ -176,6 +236,7 @@ DWORD MainThread(HMODULE Module)
     Hook::VTable<AFortGameModeBR>(2320 / 8, ReadyToStartMatchHook, &ReadyToStartMatchOriginal);
     Hook::VTable<AFortPlayerControllerAthena>(2448 / 8, ServerAcknowledgePossessionHook);
     Hook::VTable<UFortControllerComponent_Aircraft>(1320 / 8, ServerAttemptAircraftJumpHook);
+    Hook::VTable<UFortAbilitySystemComponentAthena>(2216 / 8, InternalServerTryActivateAbility);
 
     Utils::ExecuteConsoleCommand(L"log LogFortUIDirector None");
 
